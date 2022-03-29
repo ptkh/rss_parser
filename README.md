@@ -1,92 +1,195 @@
-# RSS Parser
+# Introduction to Python. Final task.
+You are proposed to implement Python RSS-reader using  **python 3.9** - Ideally, but actually, any version above **python 3.6** is fine.
+
+The task consists of few iterations. Do not start new iteration if the previous one is not implemented yet.
+
+## Common requirements.
+* It is mandatory to use `argparse` module.
+* Codebase shoud be covered with unit tests with at least 50% coverage. It's a bonus requirement and not mandatory.
+* Yor script should **not** require installation of other services such as mysql server,
+postgresql and etc. (except Iteration 6). If it does require such programs,
+they should be installed automatically by your script, without user doing anything.
+* In case of any mistakes utility should print human-readable.
+error explanation. Exception tracebacks in stdout are prohibited in final version of application.
+* Docstrings are mandatory for all methods, classes, functions and modules.
+* Code must correspond to `pep8` (use `pycodestyle` utility for self-check).
+  * You can set line length up to 120 symbols.
+* Commit messages should provide correct and helpful information about changes in commit. Messages like `Fix bug`, 
+`Tried to make workable`, `Temp commit`, `Finally works` and any other profanities are prohibited.
+* All used third-party packages should be written in the `requirements.txt` file and in installation files (`setup.py`, `setup.cfg` - for second Iteration, etc.).
+* You have to write a file with documentation. Everything must be documented: how to run scripts, how to run tests, how to install the library and etc.
+
+## [Iteration 1] One-shot command-line RSS reader.
+RSS reader should be a command-line utility which receives [RSS](wikipedia.org/wiki/RSS) URL and prints results in human-readable format.
+
+You are free to choose format of the news console output. The textbox below provides an example of how it can be implemented:
+
+```shell
+$ rss_reader.py "https://news.yahoo.com/rss/" --limit 1
+
+Feed: Yahoo News - Latest News & Headlines
+
+Title: Nestor heads into Georgia after tornados damage Florida
+Date: Sun, 20 Oct 2019 04:21:44 +0300
+Link: https://news.yahoo.com/wet-weekend-tropical-storm-warnings-131131925.html
+
+[image 2: Nestor heads into Georgia after tornados damage Florida][2]Nestor raced across Georgia as a post-tropical cyclone late Saturday, hours after the former tropical storm spawned a tornado that damaged
+homes and a school in central Florida while sparing areas of the Florida Panhandle devastated one year earlier by Hurricane Michael. The storm made landfall Saturday on St. Vincent Island, a nature preserve
+off Florida's northern Gulf Coast in a lightly populated area of the state, the National Hurricane Center said. Nestor was expected to bring 1 to 3 inches of rain to drought-stricken inland areas on its
+march across a swath of the U.S. Southeast.
 
 
-
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+Links:
+[1]: https://news.yahoo.com/wet-weekend-tropical-storm-warnings-131131925.html (link)
+[2]: http://l2.yimg.com/uu/api/res/1.2/Liyq2kH4HqlYHaS5BmZWpw--/YXBwaWQ9eXRhY2h5b247aD04Njt3PTEzMDs-/https://media.zenfs.com/en/ap.org/5ecc06358726cabef94585f99050f4f0 (image)
 
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/EPAM_COURSES_2022/RSS-parser.git
-git branch -M main
-git push -uf origin main
+
+Utility should provide the following interface:
+```shell
+usage: rss_reader.py [-h] [--version] [--json] [--verbose] [--limit LIMIT]
+                     source
+
+Pure Python command-line RSS reader.
+
+positional arguments:
+  source         RSS URL
+
+optional arguments:
+  -h, --help     show this help message and exit
+  --version      Print version info
+  --json         Print result as JSON in stdout
+  --verbose      Outputs verbose status messages
+  --limit LIMIT  Limit news topics if this parameter provided
+
 ```
 
-## Integrate with your tools
+In case of using `--json` argument your utility should convert the news into [JSON](https://en.wikipedia.org/wiki/JSON) format.
+You should come up with the JSON structure on you own and describe it in the README.md file for your repository or in a separate documentation file.
 
-- [ ] [Set up project integrations](https://gitlab.com/EPAM_COURSES_2022/RSS-parser/-/settings/integrations)
 
-## Collaborate with your team
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+With the argument `--verbose` your program should print all logs in stdout.
 
-## Test and Deploy
+### Task clarification (I)
 
-Use the built-in continuous integration in GitLab.
+1) If `--version` option is specified app should _just print its version_ and stop.
+2) User should be able to use `--version` option without specifying RSS URL. For example:
+```
+> python rss_reader.py --version
+"Version 1.4"
+```
+3) The version is supposed to change with every iteration.
+4) If `--limit` is not specified, then user should get _all_ available feed.
+5) If `--limit` is larger than feed size then user should get _all_ available news.
+6) `--verbose` should print logs _in the process_ of application running, _not after everything is done_.
+7) Make sure that your app **has no encoding issues** (meaning symbols like `&#39` and etc) when printing news to _stdout_ (console).
+8) Make sure that your app **has no encoding issues** (meaning symbols like `&#39` and etc) when printing news to _stdout in JSON format_.
+9) It is preferrable to have different custom exceptions for different situations(If needed).
+10) The `--limit` argument should also affect JSON generation.
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
 
-***
+## [Iteration 2] Distribution.
 
-# Editing this README
+* Utility should be wrapped into distribution package with `setuptools`.
+* This package should export CLI utility named `rss-reader`.
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+### Task clarification (II)
+ 
+1) User should be able to run your application _both_ with and without installation of CLI utility,
+meaning that this should work:
 
-## Name
-Choose a self-explaining name for your project.
+```
+> python rss_reader.py ...
+```
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+as well as this:  
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+```
+> rss_reader ...
+```
+2) Make sure your second iteration works on a clean machie with python 3.9. (!)
+3) Keep in mind that installed CLI utility should have the same functionality, so do not forget to update dependencies and packages.
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+## [Iteration 3] News caching.
+The RSS news should be stored in a local storage while reading. The way and format of this storage you can choose yourself.
+Please describe it in a separate section of README.md or in the documentation.
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+New optional argument `--date` must be added to your utility. It should take a date in `%Y%m%d` format.
+For example: `--date 20191020`
+Here date means actual *publishing date* not the date when you fetched the news.
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+The cashed news can be read with it. The new from the specified day will be printed out.
+If the news are not found return an error.
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+If the `--date` argument is not provided, the utility should work like in the previous iterations.
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+### Task clarification (III)
+1) Try to make your application crossplatform, meaning that it should work on both Linux and Windows.
+For example when working with filesystem, try to use `os.path` lib instead of manually concatenating file paths.
+2) `--date` should **not** require internet connection to fetch news from local cache.
+3) User should be able to use `--date` without specifying RSS source. For example:
+```
+> python rss_reader.py --date 20191206
+......
+```
+Or for second iteration (when installed using setuptools):
+```
+> rss_reader --date 20191206
+......
+```
+4) If `--date` specified _together with RSS source_, then app should get news _for this date_ from local cache that _were fetched from specified source_.
+5) `--date` should work correctly with both `--json`, `--limit`, `--verbose` and their different combinations.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
+## [Iteration 4] Format converter.
 
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
+You should implement the conversion of news in at least two of the suggested format: `.mobi`, `.epub`, `.fb2`, `.html`, `.pdf`
 
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+New optional argument must be added to your utility. This argument receives the path where new file will be saved. The arguments should represents which format will be generated.
 
-## License
-For open source projects, say how it is licensed.
+For example:  `--to-mobi` or `--to-fb2` or `--to-epub`
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+You can choose yourself the way in which the news will be displayed, but the final text result should contain pictures and links, if they exist in the original article and if the  format permits to store this type of data.
+
+### Task clarification (IV)
+
+Convertation options should work correctly together with all arguments that were implemented in Iterations 1-3. For example: 
+* Format convertation process should be influenced by `--limit`.
+* If `--json` is specified together with convertation options, then JSON news should 
+be printed to stdout, and converted file should contain news in normal format.
+* Logs from `--verbose` should be printed in stdout and not added to the resulting file.
+* `--date` should also work correctly with format converter and to not require internet access.
+
+## * [Iteration 5] Output colorization.
+> Note: An optional iteration, it is not necessary to implement it. You can move on with it only if all the previous iterations (from 1 to 4) are completely implemented.
+
+You should add new optional argument `--colorize`, that will print the result of the utility in colorized mode.
+
+*If the argument is not provided, the utility should work like in the previous iterations.*
+
+> Note: Take a look at the [colorize](https://pypi.org/project/colorize/) library
+
+## * [Iteration 6] Web-server.
+> Note: An optional iteration, it is not necessary to implement it. You can move on with it only if all the previous iterations (from 1 to 4) are completely implemented. Introduction to Python course does not cover the topics that are needed for the implementation of this part.
+
+There are several mandatory requirements in this iteration:
+* `Docker` + `docker-compose` usage (at least 2 containers: one for web-application, one for DB)
+* Web application should provide all the implemented in the previous parts of the task functionality, using the REST API:
+    * One-shot conversion from RSS to Human readable format
+    * Server-side news caching
+    * Conversion in epub, mobi, fb2 or other formats
+    
+Feel free to choose the way of implementation, libraries and frameworks. (We suggest you `Django Rest Framework` + `PostgreSQL` combination)
+
+You can implement any functionality that you want. The only requirement is to add the description into README file or update project documentation, for example:
+* authorization/authentication
+* automatic scheduled news update
+* adding new RSS sources using API
+
+---
+Implementations will be checked with the latest cPython interpreter of 3.9 branch.
+---
+
+> Always code as if the guy who ends up maintaining your code will be a violent psychopath who knows where you live. Code for readability. **John F. Woods**
