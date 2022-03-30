@@ -1,7 +1,7 @@
 # Introduction to Python. Final task.
 You are proposed to implement Python RSS-reader using  **python 3.9** - Ideally, but actually, any version above **python 3.6** is fine.
 
-The task consists of few iterations. Do not start new iteration if the previous one is not implemented yet.
+The task consists of few iterations. Do not start new iteration if the previous one is not implemented yet. **Usage of feedparser lib is prohibited.**
 
 ## Common requirements.
 * It is mandatory to use `argparse` module.
