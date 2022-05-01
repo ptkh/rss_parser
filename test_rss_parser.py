@@ -4,7 +4,7 @@ from rss_parser.rss_parser import Tree
     
 def test_estimate_connection():
 	pass
-	
+    
 def test_get_xml_tree():
     pass
 

@@ -146,7 +146,7 @@ class Tree:
 
 
 	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
-					db_filepath=os.path.join(os.getcwd(),'data/cached_news.db'), ):
+					db_filepath=os.path.join(os.path.abspath('rss_parser'),'data/cached_news.db'), ):
 		"""		Initiates class <Tree> object, connects to provided url, 
 		after fetching response from RSS feed website, calls get_xml_tree method and xml.etree.ElementTree(.Element) object is created,
 		calls collect_descendant_elements and collects all child, grandchild and any depth child elements, calls remove_tag_prefixes method 
@@ -243,7 +243,7 @@ class Tree:
 			logging.exception(e)
 			sys.exit(1)
 		finally:
-			if Tree.URL is None:
+			if Tree.URL is not None:
 				while len(Tree.CACHE) > 0:
 					Tree.db_insert_cached_one(Tree.DB)
 			if Tree.DB is not None:
@@ -557,18 +557,18 @@ class Tree:
 						description = value
 					elif key == 'news_url':
 						url = value
-				print(f"""					
-					\n______________________________
+				print(f"""			
+					\n____________________________________________
 					\nFeed: {feed_title}
-					\n______________________________
 					\nSource: {src}
-
+					\n____________________________________________
 					\nTitle: {title}
+					\n____________________________________________
 					\nDate: {date}
+
 					\n{description}
 					\nLinks:
 					\n{url}
-					\n______________________________
 					""")
 		except Exception as e:
 			logging.exception(e)
