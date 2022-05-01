@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ET
 from lxml import html
 import pdfkit
 import dateutil
+import json
 
 
 
@@ -121,10 +122,27 @@ class Tree:
 	description_tags = 'description', 'summary'
 	date_tags = 'pubdate', 'pubDate', 'published', 'updated'
 
-	# regex patterns
+	# RegEx pattern for removing tag prefix
 	pattern_prefix = "\{.*\}"
 	prefix_pattern = re.compile(pattern_prefix)
-
+	### RegEx patterns for grabbing specific tags/content
+	pattern_tag = "<.+?>"    
+	pattern_enclosed_by_same_tag = "^<([a-z]+) *[^/]*?>((.|\n)*)</\\1>$"
+	pattern_open_end_tag = "<([a-z]+) *[^/]*?>((.|\n)*)</\\1>"
+	pattern_CDATA = "<!\[CDATA\[.*?\]\]>"
+	pattern_p = "<p(|\s+[^>]*)>(.*?)<\/p\s*>"
+	pattern_a = "<a\s*(.*)>(.*)</a>"
+	pattern_href = 'href\s*=\s*"(.+?)"'
+	pattern_img= 'img\s*=\s*"(.+?)"'
+	# compiled patterns
+	tag_pattern = re.compile(pattern_tag)
+	enclosed_by_same_tag_pattern = re.compile(pattern_enclosed_by_same_tag)
+	open_end_tag_pattern = re.compile(pattern_open_end_tag)
+	CDATA_pattern = re.compile(pattern_CDATA)
+	p_pattern = re.compile(pattern_p)
+	a_pattern = re.compile(pattern_a)
+	href_pattern = re.compile(pattern_href)
+	img_pattern = re.compile(pattern_img)
 
 
 	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
@@ -248,7 +266,6 @@ class Tree:
 			logging.exception(e)
 			raise FeedParserException(e)
 
-
 	def get_xml_tree(self) -> ET.Element:
 		"""Parses xml from <HTTPResponse>.content and returns <ElementTree.Element> object"""
 		try:
@@ -261,7 +278,6 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	def collect_descendant_elements(self) -> list[ET.Element]:
 		"""Traverses xml tree, collects all descendant elements and returns list of <ElementTree.Element> objects"""
@@ -311,7 +327,6 @@ class Tree:
 			logging.exception(e)
 			raise FeedParserException(e)
 
-
 	def remove_tag_prefixes(self) -> set[str]:
 		"""Loops through the list of descendant elements, checks if tags contain prefixes and if they do, cuts them out
 		(e.g. "{'http://example.com/'}title" or "{'http://example.com/'}description",
@@ -356,7 +371,6 @@ class Tree:
 			logging.exception(e)
 			raise FeedParserException(e)
 
-
 	def set_working_tags(self) -> None:
 		"""Iterates through collected tags and sets self.ARTICLE, self.DESCRIPTION, self.DATE variables for parsing article elements to later use them while parsing article element's sub-elements."""
 		try:
@@ -380,7 +394,6 @@ class Tree:
 			logging.exception(e)
 			raise FeedParserException(e)
 		
-
 	def collect_articles(self) -> list[ET.Element]:
 		"""Loops through list of collected descendant elements and returns list of article elements"""
 		try:
@@ -408,7 +421,6 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	def parse_article(self, article: ET.Element) -> dict:
 		"""Parses article sub-elements and organizes them in a dictionary
@@ -481,11 +493,35 @@ class Tree:
 	def parse_description(self, element: ET.Element, dict_: dict) -> None:
 		"""Parses description element of xml tree, checks if element.text contains html fragments, accordingly parses and append text content to dict_[news_description]"""
 		try:
-			pass
+			if 'type' in element.attrib and element.attrib['type'] == 'html':
+				nodes = html.fragments_fromstring(element.text)
+				self.parse_html(nodes, dict_)
+			elif element.text is not None:
+				if re.search(self.pattern_CDATA, element.text) != None:
+					element.text = element.text[8:-3].strip()
+				if re.search(self.enclosed_by_same_tag_pattern, element.text) is not None:
+					s, e = re.search(self.enclosed_by_same_tag_pattern, element.text).span()
+					fragment = element.text[s:e]
+					nodes = html.fragments_fromstring(fragment)
+					self.parse_html(nodes, dict_)
+				elif re.search(self.open_end_tag_pattern, element.text) is not None:
+					s,e = re.search(self.open_end_tag_pattern, element.text).span()
+					text = element.text[:s]
+					if re.search(self.tag_pattern, text) is not None:
+						nodes = html.fragments_fromstring(text)
+						self.parse_html(nodes, dict_)
+					else:
+						if 'news_description' in dict_:
+							dict_['news_description'] = f"{dict_['news_description']}\n{text}"
+						else:
+							dict_['news_description'] = f"{text}"
+					nodes = html.fragments_fromstring(element.text[s:e])
+					self.parse_html(nodes, dict_)
+				else: 
+					dict_['news_description'] = element.text
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	@staticmethod
 	def cache_news(dict_: dict) -> None:
@@ -627,3 +663,13 @@ class Tree:
 			logging.exception(e)
 			raise FeedParserException(e)
 
+	@staticmethod
+	def convert_to_json(dict_: dict) -> str:
+		"""Method for converting cached news articles to json"""
+		logging.info("Converting news articles to json")
+		try:
+			json_ = json.dumps(dict_)
+			return json_
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
