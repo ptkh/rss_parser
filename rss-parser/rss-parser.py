@@ -15,6 +15,12 @@
 import argparse
 import os
 import logging
+import sys
+import sqlite3
+from urllib.request import _UrlopenRet
+import xml.etree.ElementTree as ET
+
+
 
 
 def rss_arg_parser():
@@ -90,11 +96,12 @@ class Tree:
 	HTML_FILEPATH = None
 	PDF_FILEPATH = None
 	DB_FILEPATH = None
+	DB = None
 	LIMIT = None
 	JSON = None
 	FILTER_K = None
 	FILTER_V = None
-
+	CACHE = []
 
 
 
@@ -114,16 +121,135 @@ class Tree:
 		if URL was not provided fetches news from database (if --date or --source is specified filters before fetching)
 		according to provided arguments prints to stdout or converts to specified format.
 		"""
+		logging.debug("Tree.__init__(%s, %s, %s, %s, %s, %s, %s, %s)" % 
+					(url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, db_filepath))
 		Tree.URL = url
 		Tree.HTML_FILEPATH = html_filepath
 		Tree.PDF_FILEPATH = pdf_filepath
 		Tree.DB_FILEPATH = db_filepath
 		Tree.LIMIT = limit
 		Tree.JSON = json_
-
 		if filter_date is not None:
 			Tree.FILTER_K = 'date'
 			Tree.FILTER_V = filter_date
 		elif filter_src is not None:
 			Tree.FILTER_K = 'news_src' 
 			Tree.FILTER_V = filter_src
+
+		try:
+			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
+
+			if Tree.URL is not None:
+				logging.info(f"Tree object created. url: {url}")
+				self.response = self.estimate_connection()
+				logging.info(f"Connected to source. self.response: {self.response}")
+				self.tree = self.get_xml_tree()
+				logging.info(f"Element object created. self.tree = {self.tree}")
+				self.elements = self.collect_descendant_elements()
+				logging.info("All sub-elements in xml tree collected.")
+				self.__tags = self.remove_tag_prefixes() 	#returns a set of tags found in xml tree
+				self.set_working_tags()
+				logging.info(f"Working tags set. \n\tself.ARTICLE = {self.ARTICLE}\n\tself.DESCRIPTION = {self.DESCRIPTION}\n\tself.TITLE = {self.TITLE}\n\tself.LINK = {self.LINK}")
+				self.articles = self.collect_articles()
+				logging.info("Article elements collected.")
+				for article in self.articles:
+					logging.info("Parsing article.")
+					temp = self.parse_article(article)
+					logging.info("Adding parsed article to cache.")
+					Tree.cache_news(temp) # appends to Tree.CACHE
+				if Tree.HTML_FILEPATH is None and Tree.PDF_FILEPATH is None:
+					# loops through and prints cached articles
+					logging.info("Printing news articles from Tree.CACHE. Tree.LIMIT = %s" % Tree.LIMIT)
+					for article in Tree.CACHE:
+						if Tree.LIMIT > 0:
+							Tree.print_news(article)
+							Tree.LIMIT -= 1
+						elif Tree.LIMIT == 0:
+							pass
+						else:
+							Tree.print_news(article)
+				else:
+					logging.info("Checking if --html or --pdf flags were set")
+					if Tree.HTML_FILEPATH is not None:
+						Tree.create_html(filepath=Tree.HTML_FILEPATH)
+					if Tree.PDF_FILEPATH is not None:
+						Tree.create_pdf()
+			else: # if self.URL is None
+				logging.info("URL not provided, fetching news from database")
+				if Tree.FILTER_K is not None:
+					Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
+				else:
+					Tree.db_fetch_news(Tree.DB)
+				if Tree.HTML_FILEPATH is None and Tree.PDF_FILEPATH is None:
+					logging.info("Printing news articles from Tree.CACHE. Tree.LIMIT = %s" % Tree.LIMIT)
+					for article in Tree.CACHE:
+						if Tree.LIMIT > 0:
+							Tree.print_news(article)
+							Tree.LIMIT -= 1
+						elif Tree.LIMIT == 0:
+							pass
+						else:
+							Tree.print_news(article)
+						if len(Tree.CACHE) < 1:
+							break
+				else:
+					logging.info("Checking if --html or --pdf flags were set")
+					if Tree.HTML_FILEPATH is not None:
+						Tree.create_html(filepath=Tree.HTML_FILEPATH)
+					if Tree.PDF_FILEPATH is not None:
+						Tree.create_pdf()
+
+		except FeedParserException as e:
+			logging.CRITICAL(e)
+			logging.exception(e)
+			sys.exit(1)
+		except Exception as e:
+			logging.CRITICAL(e)
+			logging.exception(e)
+			sys.exit(1)
+		finally:
+			if Tree.DB is not None:
+				logging.info("Database connection closed")
+				Tree.DB.close()
+
+	def estimate_connection() -> _UrlopenRet: # returns <Response>
+		pass
+
+	def get_xml_tree() -> ET.Element:
+		pass
+
+	def collect_descendant_elements() -> list:
+		pass
+
+	def remove_tag_prefixes() -> set:
+		pass
+
+	def set_working_tags() -> None:
+		pass
+
+	def collect_articles() -> list[ET.Element]:
+		pass
+
+	def parse_article(article: ET.Element) -> dict:
+		pass
+
+	@staticmethod
+	def cache_news(dict_: dict) -> None:
+		pass
+
+	@staticmethod
+	def print_news(dict_: dict) -> None:
+		pass
+
+	def create_html(filepath: str) -> None:
+		pass
+
+	def create_pdf() -> None:
+		pass
+
+	def db_fetch_news(db: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
+		pass
+
+	@staticmethod
+	def db_connection(filepath: str) -> sqlite3.Connection:
+		pass
