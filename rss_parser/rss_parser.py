@@ -173,10 +173,7 @@ class Tree:
 		elif filter_src is not None:
 			Tree.FILTER_K = 'news_src' 
 			Tree.FILTER_V = filter_src
-
 		try:
-			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
-
 			if Tree.URL is not None:
 				logging.info(f"Tree object created. url: {url}")
 				self.response = self.estimate_connection()
@@ -236,7 +233,7 @@ class Tree:
 						Tree.create_html(filepath=Tree.HTML_FILEPATH)
 					if Tree.PDF_FILEPATH is not None:
 						Tree.create_pdf()
-
+			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
 		except FeedParserException as e:
 			logging.CRITICAL(e)
 			logging.exception(e)
@@ -246,6 +243,8 @@ class Tree:
 			logging.exception(e)
 			sys.exit(1)
 		finally:
+			while len(Tree.CACHE) > 0:
+				Tree.db_insert_cached_one()
 			if Tree.DB is not None:
 				logging.info("Database connection closed")
 				Tree.DB.close()
@@ -578,13 +577,106 @@ class Tree:
 		"""Method for creating .html document from Tree.articles_html"""
 		try:
 			if filepath == Tree.temp_html_path:
-				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.temp_html_path)
-				Tree.to_html_string(Tree.CACHE, local=True)
+				logging.info("Creating html document from Tree.CACHE for converting to PDF >> %s" % Tree.temp_html_path)
 			else:
 				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.HTML_FILEPATH)
-				Tree.to_html_string(Tree.CACHE, local=False)
+			articles_html = Tree.to_html_string(Tree.CACHE)
 			with open(filepath, 'w') as file:
-				file.write(Tree.articles_html)
+				file.write(articles_html)
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	@staticmethod
+	def to_html_string(list_of_articles: list[dict]) -> str:
+		"""	Method for processing list of articles and creating Tree.articles_html,
+			also, sets Tree.PAGE_TITLE"""
+		logging.debug("Converting list of articles to html string")
+		try:
+			feed_titles = []
+			for dict_ in list_of_articles:
+				feed_titles.append(dict_['news_feed_title'])
+				logging.debug("Appending article div string to Tree.ARTICLE_DIVS")
+				if Tree.LIMIT > 0:
+					Tree.ARTICLE_DIVS += Tree.article_to_html(dict_)
+					Tree.LIMIT -= 1
+				elif Tree.LIMIT == 0:
+					pass
+				else:
+					Tree.ARTICLE_DIVS += Tree.article_to_html(dict_)
+			logging.debug("Setting html page title")
+			for title in tuple(set(feed_titles)):
+				if feed_titles.count(title) == len(feed_titles):
+					Tree.PAGE_TITLE = title
+					break
+				else:
+					if feed_titles.count(title)/len(feed_titles) >= 0.75:
+						Tree.PAGE_TITLE += ', ' + title
+
+			if Tree.PAGE_TITLE is None:
+				Tree.PAGE_TITLE = Tree.TODAY
+
+			articles_html = f'''
+			<!DOCTYPE html>
+				<html>
+					<head>
+						<title>{Tree.PAGE_TITLE}</title>
+					</head>
+					<body>
+
+					{Tree.ARTICLE_DIVS}
+
+					</body>
+				</html>
+			'''
+			return articles_html
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	@staticmethod
+	def article_to_html(dict_: dict) -> str:
+		"""Method for converting dict_ to html fragment - article_div"""
+		logging.debug("Generating html fragment for article item")
+		try:
+			urls_ = dict_['news_url'].split('\n')
+			img_urls = []
+			imgs_html = ''
+			links = []
+			links_html = ''
+
+			for url in urls_:
+				if 'content' in url:
+					img_urls.append(url[:-10])
+				else:
+					links.append(url[:-7])
+			for link in links:
+				links_html += f'''<a href="{link}">{link}</a>\n'''
+
+			logging.info('Parsing image links for constructing HTML')
+			for img in img_urls:
+				imgs_html += f'''<img src="{img}" alt="" width="60% of window">\n'''
+				div_with_feed_title = f'''
+					<div
+						<h2>{dict_['news_feed_title']}</h2>
+						{imgs_html}
+						<p>{dict_['news_src']}</p>
+						<h3>{dict_['news_title']}</h3>
+						<p>{dict_['news_date']}</p>
+						<p>{dict_['news_description']}</p>
+						{links_html}
+					</div>'''
+			div_without_feed_title = f'''
+					<div>
+						{imgs_html}
+						<p>{dict_['news_src']}</p>
+						<h2>{dict_['news_title']}</h2>
+						<p>{dict_['news_date']}</p>
+						<p>{dict_['news_description']}</p>
+						{links_html}
+					</div>'''
+			article_div = div_without_feed_title if dict_['news_feed_title'] in Tree.ARTICLE_DIVS else div_with_feed_title
+			return article_div
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -664,6 +756,43 @@ class Tree:
 			raise FeedParserException(e)
 
 	@staticmethod
+	def db_insert_cached_one(database: sqlite3.Connection) -> None:
+		"""Inserts first row from Tree.CACHE and pops it from the list"""
+		sql = """
+		INSERT INTO cached_news 
+				(date, 
+				news_feed_title,
+				news_src, 
+				news_title, 
+				news_date, 
+				news_description, 
+				news_url)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+		"""
+		logging.info("Inserting row from Tree.CACHE into database")
+		try:
+			if len(Tree.CACHE) > 0:
+				temp = Tree.CACHE.pop(0)
+				with database:
+					cursor = database.cursor()
+					check_if_exists = f"SELECT date FROM cached_news WHERE news_title LIKE ?"
+					cursor.execute(check_if_exists, (temp['news_title'],))
+					flag = cursor.fetchone()
+					if flag is None:
+						cursor.execute(sql, 
+							(temp['date'], 
+							temp['news_feed_title'],
+							temp['news_src'], 
+							temp['news_title'], 
+							temp['news_date'], 
+							temp['news_description'], 
+							temp['news_url']),
+						)
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	@staticmethod
 	def convert_to_json(dict_: dict) -> str:
 		"""Method for converting cached news articles to json"""
 		logging.info("Converting news articles to json")
@@ -673,3 +802,74 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
+			
+	def parse_html(self, nodes: list[html.HtmlElement], dict_: dict) -> None:
+		"""Receives html element object, loops through sub elements and calls parsing methods on them accordingly """
+		try:
+			logging.info("Parsing HTML fragment")
+			for node in nodes:
+				if node.tag == 'p' or node.tag == 'div':
+					self.parse_div_p(node, dict_)
+				if node.tag == 'img':
+					self.parse_img(node, dict_)
+				if node.tag == 'a':
+					self.parse_a(node, dict_)
+				for child in node.getchildren():
+					if child.tag == 'div' or child.tag == 'p':
+						self.parse_div_p(child, dict_)
+					elif child.tag == 'img':
+						self.parse_img(child, dict_)
+					elif child.tag == 'a':
+						self.parse_a(child, dict_)
+					elif child.tag == 'ul':
+						for c in child.getchildren():
+							if 'news_description' in dict_:
+								dict_['news_description'] = f"{dict_['news_description']}\n{c.text}"
+							else:
+								dict_['news_description'] = f"{c.text}"
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	def parse_div_p(self, node: html.HtmlElement, dict_: dict) -> None:
+		"""Parses div or p tag of html, appends text_content to dict_[news_description] and if element has sub elements instructs to parse them"""
+		try:
+			if node.getchildren() == []:
+				if len(node.text_content()) > 0:
+					if 'news_description' in dict_:
+						dict_['news_description'] = f"{dict_['news_description']}\n{node.text_content()}"
+					else: 
+						dict_['news_description'] = f"{node.text_content()}"
+			else:
+				if 'news_description' in dict_:
+					dict_['news_description'] = f"{dict_['news_description']}\n{node.text_content()}"
+				else: 
+					dict_['news_description'] = f"{node.text_content()}"
+				self.parse_html(node.getchildren(), dict_)
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	def parse_img(self, node: html.HtmlElement, dict_: dict) -> None:		
+		"""Parses img tag of html and appends url to dict_[news_url]"""
+		try:
+			if 'news_url' in dict_:
+				if dict_['news_url'].find(node.attrib['src']) == -1:
+					dict_['news_url'] = f"{dict_['news_url']}\n{node.attrib['src']} (content)"
+			else:
+				dict_['news_url'] = f"{node.attrib['src']} (content)"
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	def parse_a(self, node: html.HtmlElement, dict_: dict) -> None:
+		"""Parses a tag of html and appends url to dict_[news_url]"""
+		try:
+			href = node.attrib['href']
+			if 'news_url' in dict_:
+				if dict_['news_url'].find(href) == -1:
+					dict_['news_url'] = f"{dict_['news_url']}\n{node.attrib['href']} (link)"
+			else:
+				dict_['news_url'] = f"{node.attrib['href']} (link)"
+		except Exception as e:
+			raise e
