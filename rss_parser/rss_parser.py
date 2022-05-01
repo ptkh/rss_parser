@@ -21,7 +21,9 @@ import sys
 import sqlite3
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+from lxml import html
 import pdfkit
+import dateutil
 
 
 
@@ -413,6 +415,72 @@ class Tree:
 		(e.g. dict({'title': title_element_contents, 'link': link_element_contents, ...})
 		returns dictionary"""
 		try:
+			dict_ = {}
+			for element in article:
+				logging.info("Parsing article sub-element: %s" % element.tag)
+				if element.text is not None:
+					element.text = element.text.replace(u'\xa0', u' ') 
+				if element.tag == self.TITLE:
+					self.parse_title(element, dict_)
+				elif element.tag == self.DATE:
+					self.parse_date(element, dict_)
+				elif element.tag == self.LINK:
+					self.parse_link(element, dict_)
+				elif element.tag == self.DESCRIPTION:
+					if element.text is None:
+						if self.DESCRIPTION == 'description' and 'summary' in self.__tags:
+							self.DESCRIPTION = 'summary'
+						elif self.DESCRIPTION == 'summary' and 'description' in self.__tags:
+							self.DESCRIPTION = 'description'
+						continue
+					self.parse_description(element, dict_)
+				elif element.tag == 'content' and 'url' in element.attrib:
+					if 'news_url' in dict_:
+						dict_['news_url'] = f"{dict_['news_url']}\n{element.attrib['url']} (content)"
+					else:
+						dict_['news_url'] = f"{element.attrib['url']} (content)"
+			dict_['news_title'] = dict_['news_title'].strip()
+			dict_['news_url'] = dict_['news_url'].strip()
+			dict_['news_src'] = Tree.URL
+			if 'news_description' in dict_:
+				dict_['news_description'] = dict_['news_description'].strip()
+			else:
+				dict_['news_description'] = ''
+			if 'news_date' not in dict_:
+				dict_['news_date'] = Tree.TODAY
+			dict_['date'] = str(dict_['news_date'])[:10]
+			dict_['news_feed_title'] = self.feed_title
+
+			return dict_
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	def parse_title(self, element: ET.Element, dict_: dict) -> None:
+		"""Parses title element of xml and appends text to dict_[news_title]"""
+		dict_['news_title'] = element.text
+		
+	def parse_date(self, element: ET.Element, dict_: dict) -> None:
+		"""Parses date element of xml tree and appends datetime object to dict_[news_date]"""
+		dict_['news_date'] = str(dateutil.parser.parse(element.text, ignoretz=True))
+
+	def parse_link(self, element: ET.Element, dict_: dict) -> None:
+		"""Parses link element of xml tree and appends links to dict_[news_url]"""
+		if 'href' in element.attrib:
+			if 'news_url' in dict_:
+				dict_['news_url'] = f"{dict_['news_url']}\n{element.attrib['href']} (link)"
+			else:
+				dict_['news_url'] = f"{element.attrib['href']} (link)"
+		elif type(element.text) == str:
+			if 'http' in element.text:
+				if 'news_url' in dict_:
+					dict_['news_url'] = f"{dict_['news_url']}\n{element.text} (link)"
+				else:
+					dict_['news_url'] = f"{element.text} (link)"
+
+	def parse_description(self, element: ET.Element, dict_: dict) -> None:
+		"""Parses description element of xml tree, checks if element.text contains html fragments, accordingly parses and append text content to dict_[news_description]"""
+		try:
 			pass
 		except Exception as e:
 			logging.exception(e)
@@ -428,7 +496,6 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	@staticmethod
 	def print_news(article: dict) -> None:
