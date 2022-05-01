@@ -313,29 +313,35 @@ class Tree:
 		While looping through elements, adds all found tags in a set and returns it."""
 		try:
 			logging.debug("Method remove_tag_prefixes called.")
+			logging.info("Checking if xml tree tags contain prefixes")
 			tags = set() #for collecting tags while iterating
 			if hasattr(self.tree, 'tag'):    #checks if element has tag
 				if re.search(Tree.prefix_pattern, self.tree.tag) is not None: # if tag has prefix, removes it
+					logging.info('Removing tag prefix: %s' % element.tag)
 					self.tree.tag = re.sub(Tree.prefix_pattern, '', self.tree.tag) 
 				tags.add(self.tree.tag) # adds tag to set
 				for element in self.tree:
 					if hasattr(element, 'tag'):
 						if re.search(Tree.prefix_pattern, element.tag) is not None:
+							logging.info('Removing tag prefix: %s' % element.tag)
 							element.tag = re.sub(Tree.prefix_pattern, '', element.tag)
 						tags.add(element.tag)
 						for elmnt in element:
 							if hasattr(elmnt, 'tag'):
 								if re.search(Tree.prefix_pattern, elmnt.tag) is not None:
+									logging.info('Removing tag prefix: %s' % element.tag)
 									elmnt.tag = re.sub(Tree.prefix_pattern, '', elmnt.tag)
 								tags.add(elmnt.tag)
 								for elmt in elmnt:
 									if hasattr(elmt, 'tag'):
 										if re.search(Tree.prefix_pattern, elmt.tag) is not None:
+											logging.info('Removing tag prefix: %s' % element.tag)
 											elmt.tag = re.sub(Tree.prefix_pattern, '', elmt.tag)
 										tags.add(elmt.tag)
 										for emt in elmt:
 											if hasattr(emt, 'tag'):
 												if re.search(Tree.prefix_pattern, emt.tag) is not None:
+													logging.info('Removing tag prefix: %s' % element.tag)
 													emt.tag = re.sub(Tree.prefix_pattern, '', emt.tag)
 												tags.add(emt.tag)
 
@@ -348,8 +354,22 @@ class Tree:
 	def set_working_tags(self) -> None:
 		"""Iterates through collected tags and sets self.ARTICLE, self.DESCRIPTION, self.DATE variables for parsing article elements to later use them while parsing article element's sub-elements."""
 		try:
-			pass
-			
+			logging.info("Setting working tags")
+			for tag in self.__tags:
+				if self.ARTICLE != None and self.DESCRIPTION != None and self.DATE != None:
+					break
+				if self.ARTICLE == None and tag in Tree.article_tags:
+					self.ARTICLE = tag
+					logging.info("Article tag set: %s" % tag)
+					continue
+				elif self.DESCRIPTION == None and tag in Tree.description_tags:
+					self.DESCRIPTION = tag
+					logging.info("Description tag set: %s" % tag)
+					continue
+				elif self.DATE == None and tag in Tree.date_tags:
+					self.DATE = tag
+					logging.info("Date tag set: %s" % tag)
+					continue
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -358,8 +378,27 @@ class Tree:
 	def collect_articles(self) -> list[ET.Element]:
 		"""Loops through list of collected descendant elements and returns list of article elements"""
 		try:
-			pass
-			
+			articles = [] #list for collecting item blocks
+			for element in self.tree:        #(tree ~> *child* ~>...
+				if element.tag == self.ARTICLE: #checks if child tag is item
+					logging.info("Article element found in collected articles")
+					articles.append(element)    #if true, appends item block (current ET.Element object) to items list
+					continue                 #and continues iterating on the same level
+				for elemnt in element:       #otherwise iterates over tags one level deeper ( tree ~> child ~> *grandchild* ~> ... )
+					if elemnt.tag == self.ARTICLE:
+						logging.info("Article element found in collected articles")
+						articles.append(elemnt)
+						continue
+					for elemt in elemnt:     #( tree ~> child ~> grandchild ~> *2Xgrandchild* ~> ... )
+						if elemt.tag == self.ARTICLE:
+							logging.info("Article element found in collected articles")
+							articles.append(elemt)
+							continue
+						for elem in elemt:   #( tree ~> child ~> grandchild ~> 2Xgrandchild ~> *3Xgrandchild* ~> ... )
+							if elem.tag == self.ARTICLE:
+								logging.info("Article element found in collected articles")
+								articles.append(elem)
+								continue
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
