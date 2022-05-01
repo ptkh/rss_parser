@@ -21,6 +21,7 @@ import sys
 import sqlite3
 from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
+import pdfkit
 
 
 
@@ -103,6 +104,9 @@ class Tree:
 	FILTER_K = None
 	FILTER_V = None
 	CACHE = []
+	temp_html_path = os.path.join(os.getcwd(), 'data/.temp.html')
+	PAGE_TITLE = None
+	ARTICLE_DIVS = ''
 
 	# working tags
 	ARTICLE = None
@@ -410,7 +414,6 @@ class Tree:
 		returns dictionary"""
 		try:
 			pass
-			
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -420,64 +423,139 @@ class Tree:
 	def cache_news(dict_: dict) -> None:
 		"""Method for appending news articles to CACHE"""
 		try:
-			pass
-			
+			logging.debug("Appending news article to CACHE")
+			Tree.CACHE.append(dict_)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
 
 
 	@staticmethod
-	def print_news(dict_: dict) -> None:
+	def print_news(article: dict) -> None:
 		"""Prints formatted news item, if --json specified, prints JSON representation"""
 		try:
-			pass
-			
+			if Tree.JSON:
+				logging.info("Printing JSON representation of article to stdout")
+				json_str = Tree.convert_to_json(article)
+				print(f"\n{json_str}\n")
+			else:
+				logging.info("Printing formatted article to stdout")
+				for key, value in article.items():
+					if key == 'news_feed_title':
+						feed_title = value
+					elif key == 'news_src':
+						src = value
+					elif key == 'news_title':
+						title = value
+					elif key == 'news_date':
+						date = value
+					elif key == 'news_description':
+						description = value
+					elif key == 'news_url':
+						url = value
+				print(f"""					
+					\n______________________________
+					\nFeed: {feed_title}
+					\n______________________________
+					\nSource: {src}
+
+					\nTitle: {title}
+					\nDate: {date}
+					\n{description}
+					\nLinks:
+					\n{url}
+					\n______________________________
+					""")
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	@staticmethod
 	def create_html(filepath: str) -> None:
 		"""Method for creating .html document from Tree.articles_html"""
 		try:
-			pass
-			
+			if filepath == Tree.temp_html_path:
+				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.temp_html_path)
+				Tree.to_html_string(Tree.CACHE, local=True)
+			else:
+				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.HTML_FILEPATH)
+				Tree.to_html_string(Tree.CACHE, local=False)
+			with open(filepath, 'w') as file:
+				file.write(Tree.articles_html)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
 
 	@staticmethod
 	def create_pdf() -> None:
-		"""If html document does not exist, creates it and converts it into pdf"""
+		"""Created HTML document and converts it into PDF using wkhtmltopdf, embedding images may take long time."""
 		try:
-			pass
-			
+			Tree.create_html(Tree.temp_html_path)
+			logging.info("Created html string for converting to pdf")
+			logging.info("Creating pdf document using webkit rendering engine and qt")
+			pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
+			try:
+				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
+			except Exception as e:
+				logging.critical("Failed to create PDF document due to exception: %s", e)
+				raise FeedParserException(e)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
 
 	@staticmethod
-	def db_fetch_news(db: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
+	def db_fetch_news(database: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
 		"""Selects rows from db according to provided column and value and fetches them
 		Returns list of dictionaries containing fetched values"""
 		try:
-			pass
+			logging.info("Fetching news articles from database")
+			if filter_key is None and filter_value is None:
+				sql = f"""SELECT * FROM cached_news"""
+			else:
+				sql = f"""SELECT * FROM cached_news WHERE {filter_key} LIKE '%{filter_value}%'"""
+
+			logging.info(sql)
+
+			with database:
+				cursor = database.cursor()
+				cursor.execute(sql)
+				data = cursor.fetchall()
+			for item in data:
+				dict_ = {}
+				dict_['date'], dict_['news_feed_title'],dict_['news_src'], dict_['news_title'], dict_['news_date'], dict_['news_description'], dict_['news_url'] = item
+				Tree.cache_news(dict_)
 			
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
-
 
 	@staticmethod
 	def db_connection(filepath: str) -> sqlite3.Connection:
 		"""Connects to or creates the database specified by filepath
 		Creates table cached_news if it does not exist
 		Returns database connection object"""
+		sql = """
+		CREATE TABLE IF NOT EXISTS cached_news
+				(date TEXT, 
+				news_feed_title TEXT,
+				news_src TEXT, 
+				news_title TEXT, 
+				news_date TEXT, 
+				news_description TEXT, 
+				news_url TEXT)
+		"""
+		logging.info("Connecting to SQLite database")
 		try:
-			pass
+			if os.path.isfile(filepath):
+				database = sqlite3.connect(filepath)
+			else:
+				database = sqlite3.connect(filepath)
+				with database:
+					cursor = database.cursor()
+					cursor.execute(sql)
+					logging.info("Creating cached_news table in database: %s" % filepath)
 			
+			return database
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
