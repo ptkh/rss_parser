@@ -14,7 +14,7 @@
 
 import argparse
 import os
-
+import logging
 
 
 def rss_arg_parser():
@@ -42,3 +42,16 @@ def rss_arg_parser():
 	parser.add_argument('--html', metavar='FILEPATH', type=str,  const=os.path.join(os.getcwd(), 'data/', 'cached_news.html'), nargs='?', help='export result as HTML to provided destination')
 	args = parser.parse_args()
 	return args
+
+def logging_basicConfig(LOGGING_LEVEL, LOG_FILEPATH):
+	"""	Sets logging level according to call arguments and should be called before instantiating class Tree object
+		if --log FILEPATH is specified sets logging level to INFO and creates log file in provided destination
+		else sets logging level to provided LOGGING_LEVEL
+	"""
+	if LOG_FILEPATH is None:
+		logging.basicConfig(level=LOGGING_LEVEL, encoding='utf-8')
+	else:
+		logging.basicConfig(level=logging.INFO, filepath=LOG_FILEPATH, encoding='utf-8')
+
+class FeedParserException(Exception):
+    """Custom Exception class for <class 'Tree'>"""
