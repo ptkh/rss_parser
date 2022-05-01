@@ -49,8 +49,8 @@ def rss_arg_parser() -> argparse.Namespace:
 	parser.add_argument('--source', type=str, default=None, help='outputs articles from specified source')
 	parser.add_argument('--verbose', action='store_true', help='output verbose status messages')
 	parser.add_argument('--limit', help='limit news topics, if provided', type=int, nargs='?', default=-1, const=5)
-	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const=os.path.join(os.getcwd(), 'data/', 'cached_news.pdf'), nargs='?', help='export result as PDF to provided destination, might take time for downloading images')
-	parser.add_argument('--html', metavar='FILEPATH', type=str,  const=os.path.join(os.getcwd(), 'data/', 'cached_news.html'), nargs='?', help='export result as HTML to provided destination')
+	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const=os.path.join(os.path.abspath('rss_parser'), 'data/cached_news.pdf'), nargs='?', help='export result as PDF to provided destination, might take time for downloading images')
+	parser.add_argument('--html', metavar='FILEPATH', type=str,  const=os.path.join(os.path.abspath('rss_parser'), 'data/cached_news.html'), nargs='?', help='export result as HTML to provided destination')
 	args = parser.parse_args()
 	return args
 
@@ -107,7 +107,7 @@ class Tree:
 	FILTER_K = None
 	FILTER_V = None
 	CACHE = []
-	temp_html_path = os.path.join(os.getcwd(), 'data/.temp.html')
+	temp_html_path = os.path.join(os.path.abspath('rss_parser'), 'data/.temp.html')
 	PAGE_TITLE = None
 	ARTICLE_DIVS = ''
 
@@ -699,6 +699,9 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
+		finally:
+			if os.path.exists(Tree.temp_html_path):
+				os.remove(Tree.temp_html_path)
 
 	@staticmethod
 	def db_fetch_news(database: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
