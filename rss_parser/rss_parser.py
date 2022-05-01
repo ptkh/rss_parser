@@ -13,13 +13,12 @@
 
 
 import argparse
+from http.client import HTTPResponse
 import os
 import logging
 import sys
 import sqlite3
-from urllib.request import _UrlopenRet
 import xml.etree.ElementTree as ET
-
 
 
 
@@ -102,9 +101,6 @@ class Tree:
 	FILTER_K = None
 	FILTER_V = None
 	CACHE = []
-
-
-
 
 
 	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
@@ -212,44 +208,79 @@ class Tree:
 				logging.info("Database connection closed")
 				Tree.DB.close()
 
-	def estimate_connection() -> _UrlopenRet: # returns <Response>
-		pass
+	@staticmethod
+	def estimate_connection() -> HTTPResponse:
+		"""Sends request to Tree.URL and returns <HTTPResponse> object"""
+
+
 
 	def get_xml_tree() -> ET.Element:
-		pass
+		"""Parses xml from <HTTPResponse>.content and returns <ElementTree.Element> object"""
+		
 
-	def collect_descendant_elements() -> list:
-		pass
 
-	def remove_tag_prefixes() -> set:
-		pass
+	def collect_descendant_elements() -> list[ET.Element]:
+		"""Traverses xml tree, collects all descendant elements and returns list of <ElementTree.Element> objects"""
+
+
+
+	def remove_tag_prefixes() -> set[str]:
+		"""Loops through the list of descendant elements, checks if tags contain prefixes and if they do, cuts them out
+		(e.g. "{'http://example.com/'}title" or "{'http://example.com/'}description",
+		where "{http://example.com/'}" is prefix and following word is tag name, result is "title" and "description")
+		While looping through elements, adds all found tags in a set and returns it."""
+
+
 
 	def set_working_tags() -> None:
-		pass
+		"""Iterates through collected tags and sets self.ARTICLE, self.DESCRIPTION, self.DATE variables for parsing article elements to later use them while parsing article element's sub-elements."""
+
+		
 
 	def collect_articles() -> list[ET.Element]:
-		pass
+		"""Loops through list of collected descendant elements and returns list of article elements"""
+
+
 
 	def parse_article(article: ET.Element) -> dict:
-		pass
+		"""Parses article sub-elements and organizes them in a dictionary
+		(e.g. dict({'title': title_element_contents, 'link': link_element_contents, ...})
+		returns dictionary"""
+
+
 
 	@staticmethod
 	def cache_news(dict_: dict) -> None:
-		pass
+		"""Method for appending news articles to CACHE"""
+
+
 
 	@staticmethod
 	def print_news(dict_: dict) -> None:
-		pass
+		"""Prints formatted news item, if --json specified, prints JSON representation"""
+
+
 
 	def create_html(filepath: str) -> None:
-		pass
+		"""Method for creating .html document from Tree.articles_html"""
+
+
 
 	def create_pdf() -> None:
-		pass
+		"""If html document does not exist, creates it and converts it into pdf"""
+
+
 
 	def db_fetch_news(db: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
-		pass
+		"""Selects rows from db according to provided column and value and fetches them
+		Returns list of dictionaries containing fetched values"""
+
+
 
 	@staticmethod
 	def db_connection(filepath: str) -> sqlite3.Connection:
-		pass
+		"""Connects to or creates the database specified by filepath
+		Creates table cached_news if it does not exist
+		Returns database connection object"""
+
+
