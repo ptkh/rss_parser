@@ -23,12 +23,12 @@ from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 from lxml import html
 import pdfkit
-import dateutil
+import dateutil.parser
 import json
 
 
 
-def rss_arg_parser():
+def rss_arg_parser() -> argparse.Namespace:
 	"""	Creates custom parser with following arguments: 
 	\nurl					URL to XML format RSS feed
 	\n--version			print version info
@@ -54,7 +54,7 @@ def rss_arg_parser():
 	args = parser.parse_args()
 	return args
 
-def logging_basicConfig(LOGGING_LEVEL, LOG_FILEPATH):
+def logging_basicConfig(LOGGING_LEVEL: int, LOG_FILEPATH: str) -> None:
 	"""	Sets logging level according to call arguments and should be called before instantiating class Tree object
 		if --log FILEPATH is specified sets logging level to INFO and creates log file in provided destination
 		else sets logging level to provided LOGGING_LEVEL
@@ -174,6 +174,7 @@ class Tree:
 			Tree.FILTER_K = 'news_src' 
 			Tree.FILTER_V = filter_src
 		try:
+			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
 			if Tree.URL is not None:
 				logging.info(f"Tree object created. url: {url}")
 				self.response = self.estimate_connection()
@@ -214,7 +215,7 @@ class Tree:
 				if Tree.FILTER_K is not None:
 					Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
 				else:
-					Tree.db_fetch_news(Tree.DB)
+					Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
 				if Tree.HTML_FILEPATH is None and Tree.PDF_FILEPATH is None:
 					logging.info("Printing news articles from Tree.CACHE. Tree.LIMIT = %s" % Tree.LIMIT)
 					for article in Tree.CACHE:
@@ -233,7 +234,6 @@ class Tree:
 						Tree.create_html(filepath=Tree.HTML_FILEPATH)
 					if Tree.PDF_FILEPATH is not None:
 						Tree.create_pdf()
-			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
 		except FeedParserException as e:
 			logging.CRITICAL(e)
 			logging.exception(e)
@@ -243,8 +243,9 @@ class Tree:
 			logging.exception(e)
 			sys.exit(1)
 		finally:
-			while len(Tree.CACHE) > 0:
-				Tree.db_insert_cached_one()
+			if Tree.URL is None:
+				while len(Tree.CACHE) > 0:
+					Tree.db_insert_cached_one(Tree.DB)
 			if Tree.DB is not None:
 				logging.info("Database connection closed")
 				Tree.DB.close()
@@ -417,6 +418,7 @@ class Tree:
 								logging.info("Article element found in collected articles")
 								articles.append(elem)
 								continue
+			return articles
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -687,7 +689,7 @@ class Tree:
 		try:
 			Tree.create_html(Tree.temp_html_path)
 			logging.info("Created html string for converting to pdf")
-			logging.info("Creating pdf document using webkit rendering engine and qt")
+			logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
 			pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
 			try:
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
@@ -873,3 +875,35 @@ class Tree:
 				dict_['news_url'] = f"{node.attrib['href']} (link)"
 		except Exception as e:
 			raise e
+
+
+def main():
+	VERSION = 'RSSFeedParser 0.3'
+	LOGGING_LEVEL = logging.CRITICAL
+	LOG_FILEPATH = None
+
+	args = rss_arg_parser()
+	if args.version:
+		print(VERSION)
+		sys.exit(0)
+
+	if args.log is None:
+		if args.verbose:
+			LOGGING_LEVEL = logging.INFO
+	else:
+		LOG_FILEPATH = args.log
+	logging_basicConfig(LOGGING_LEVEL, LOG_FILEPATH)
+
+	tree = Tree(args.url, 
+				limit=args.limit,
+				json_=args.json, 
+				html_filepath=args.html, 
+				pdf_filepath=args.pdf, 
+				filter_src=args.source,
+				filter_date=args.date,)
+
+
+
+if __name__ == '__main__':
+	main()
+	sys.exit(0)
