@@ -16,8 +16,10 @@ import argparse
 from http.client import HTTPResponse
 import os
 import logging
+import re
 import sys
 import sqlite3
+from urllib.request import Request, urlopen
 import xml.etree.ElementTree as ET
 
 
@@ -101,6 +103,22 @@ class Tree:
 	FILTER_K = None
 	FILTER_V = None
 	CACHE = []
+
+	# working tags
+	ARTICLE = None
+	DESCRIPTION = None
+	DATE = None
+	LINK = 'link'
+	TITLE = 'title'
+	### different tag variants for parsing different sources
+	article_tags = 'item', 'article', 'entry'	
+	description_tags = 'description', 'summary'
+	date_tags = 'pubdate', 'pubDate', 'published', 'updated'
+
+	# regex patterns
+	pattern_prefix = "\{.*\}"
+	prefix_pattern = re.compile(pattern_prefix)
+
 
 
 	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
@@ -210,71 +228,207 @@ class Tree:
 
 	@staticmethod
 	def estimate_connection() -> HTTPResponse:
-		"""Sends request to Tree.URL and returns <HTTPResponse> object"""
+		"""Sends request to Tree.URL and returns <http.client.HTTPResponse> object"""
+		try:			
+			logging.debug("Method estimate_connection called.")
+			headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'} #overriding user-agent prevents server from blocking request
+			request = Request(url=Tree.URL, headers=headers)  # 	<urllib.request.Request>
+			logging.info("Request created: %s" % request)
+			response = urlopen(request)
+			logging.debug("Response received: %s" %response)
+			
+			return response        
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-
-	def get_xml_tree() -> ET.Element:
+	def get_xml_tree(self) -> ET.Element:
 		"""Parses xml from <HTTPResponse>.content and returns <ElementTree.Element> object"""
-		
+		try:
+			logging.debug("Method get_xml_tree called.")
+			content = self.response.read()
+			logging.debug("Content fetched from response: %s" % content)
+			tree = ET.fromstring(content)
+			logging.debug("XML Element created: %s" % tree)
+			return tree
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-	def collect_descendant_elements() -> list[ET.Element]:
+	def collect_descendant_elements(self) -> list[ET.Element]:
 		"""Traverses xml tree, collects all descendant elements and returns list of <ElementTree.Element> objects"""
+		try:
+			logging.debug("Method collect_descendant_elements called.")
+			elements = [] #list for collecting child elements
+			for element in self.tree:        #(tree ~> *child* ~>...
+				logging.debug("Traversing XML tree, collecting child elements")
+				if element.tag == 'channel':
+					for child in element:
+						if child.tag == 'title':
+							logging.debug("Channel title found: %s" % child.text)
+							self.feed_title = child.text
+				if element.tag == self.ARTICLE: #checks if child tag is item
+					logging.debug("Article element found: %" % element)
+					elements.append(element)    #if true, appends element block (current ET.Element object) to element list
+					continue                 #and continues iterating on the same level
+				for elemnt in element:       #otherwise iterates over tags one level deeper ( tree ~> child ~> *grandchild* ~> ... )
+					if elemnt.tag == 'channel':
+						for child in elemnt:
+							if child.tag == 'title':
+								logging.debug("Channel title found: %s" % child.text)
+								self.feed_title = child.text
+					if elemnt.tag == self.ARTICLE:
+						logging.debug("Article element found: %" % element)
+						elements.append(elemnt)
+						continue
+					for elemt in elemnt:     #( tree ~> child ~> grandchild ~> *2Xgrandchild* ~> ... )
+						if elemt.tag == 'channel':
+							for child in elemt:
+								if child.tag == 'title':
+									logging.debug("Channel title found: %s" % child.text)
+									self.feed_title = child.text
+						if elemt.tag == self.ARTICLE:
+							logging.debug("Article element found: %" % element)
+							elements.append(elemt)
+							continue
+						for elem in elemt:   #( tree ~> child ~> grandchild ~> 2Xgrandchild ~> *3Xgrandchild* ~> ... )
+							if elem.tag == self.ARTICLE:
+								logging.debug("Article element found: %" % element)
+								elements.append(elem)
+								continue
+			logging.debug("Returning article elements: %s", elements)
+			
+			return elements
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-
-	def remove_tag_prefixes() -> set[str]:
+	def remove_tag_prefixes(self) -> set[str]:
 		"""Loops through the list of descendant elements, checks if tags contain prefixes and if they do, cuts them out
 		(e.g. "{'http://example.com/'}title" or "{'http://example.com/'}description",
 		where "{http://example.com/'}" is prefix and following word is tag name, result is "title" and "description")
 		While looping through elements, adds all found tags in a set and returns it."""
+		try:
+			logging.debug("Method remove_tag_prefixes called.")
+			tags = set() #for collecting tags while iterating
+			if hasattr(self.tree, 'tag'):    #checks if element has tag
+				if re.search(Tree.prefix_pattern, self.tree.tag) is not None: # if tag has prefix, removes it
+					self.tree.tag = re.sub(Tree.prefix_pattern, '', self.tree.tag) 
+				tags.add(self.tree.tag) # adds tag to set
+				for element in self.tree:
+					if hasattr(element, 'tag'):
+						if re.search(Tree.prefix_pattern, element.tag) is not None:
+							element.tag = re.sub(Tree.prefix_pattern, '', element.tag)
+						tags.add(element.tag)
+						for elmnt in element:
+							if hasattr(elmnt, 'tag'):
+								if re.search(Tree.prefix_pattern, elmnt.tag) is not None:
+									elmnt.tag = re.sub(Tree.prefix_pattern, '', elmnt.tag)
+								tags.add(elmnt.tag)
+								for elmt in elmnt:
+									if hasattr(elmt, 'tag'):
+										if re.search(Tree.prefix_pattern, elmt.tag) is not None:
+											elmt.tag = re.sub(Tree.prefix_pattern, '', elmt.tag)
+										tags.add(elmt.tag)
+										for emt in elmt:
+											if hasattr(emt, 'tag'):
+												if re.search(Tree.prefix_pattern, emt.tag) is not None:
+													emt.tag = re.sub(Tree.prefix_pattern, '', emt.tag)
+												tags.add(emt.tag)
+
+			return tags
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-
-	def set_working_tags() -> None:
+	def set_working_tags(self) -> None:
 		"""Iterates through collected tags and sets self.ARTICLE, self.DESCRIPTION, self.DATE variables for parsing article elements to later use them while parsing article element's sub-elements."""
-
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 		
 
-	def collect_articles() -> list[ET.Element]:
+	def collect_articles(self) -> list[ET.Element]:
 		"""Loops through list of collected descendant elements and returns list of article elements"""
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-
-	def parse_article(article: ET.Element) -> dict:
+	def parse_article(self, article: ET.Element) -> dict:
 		"""Parses article sub-elements and organizes them in a dictionary
 		(e.g. dict({'title': title_element_contents, 'link': link_element_contents, ...})
 		returns dictionary"""
-
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
 	@staticmethod
 	def cache_news(dict_: dict) -> None:
 		"""Method for appending news articles to CACHE"""
-
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
 	@staticmethod
 	def print_news(dict_: dict) -> None:
 		"""Prints formatted news item, if --json specified, prints JSON representation"""
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
-
+	@staticmethod
 	def create_html(filepath: str) -> None:
 		"""Method for creating .html document from Tree.articles_html"""
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
-
-
+	@staticmethod
 	def create_pdf() -> None:
 		"""If html document does not exist, creates it and converts it into pdf"""
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
-
-
+	@staticmethod
 	def db_fetch_news(db: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
 		"""Selects rows from db according to provided column and value and fetches them
 		Returns list of dictionaries containing fetched values"""
-
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
 
 	@staticmethod
@@ -282,5 +436,10 @@ class Tree:
 		"""Connects to or creates the database specified by filepath
 		Creates table cached_news if it does not exist
 		Returns database connection object"""
-
+		try:
+			pass
+			
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
 
