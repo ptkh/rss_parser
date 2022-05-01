@@ -84,7 +84,24 @@ class Tree:
 
 	Parsing starts when <class 'Tree'> object is initiated and result is an attribute - instance.list_of_articles - created as a list of 	dictionaries which contain news articles organized in key-value pairs"""
 
-	def __init__():
+
+	# CONSTANTS
+	URL = None
+	HTML_FILEPATH = None
+	PDF_FILEPATH = None
+	DB_FILEPATH = None
+	LIMIT = None
+	JSON = None
+	FILTER_K = None
+	FILTER_V = None
+
+
+
+
+
+
+	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
+					db_filepath=os.path.join(os.getcwd(),'data/cached_news.db'), ):
 		"""		Initiates class <Tree> object, connects to provided url, 
 		after fetching response from RSS feed website, calls get_xml_tree method and xml.etree.ElementTree(.Element) object is created,
 		calls collect_descendant_elements and collects all child, grandchild and any depth child elements, calls remove_tag_prefixes method 
@@ -97,3 +114,16 @@ class Tree:
 		if URL was not provided fetches news from database (if --date or --source is specified filters before fetching)
 		according to provided arguments prints to stdout or converts to specified format.
 		"""
+		Tree.URL = url
+		Tree.HTML_FILEPATH = html_filepath
+		Tree.PDF_FILEPATH = pdf_filepath
+		Tree.DB_FILEPATH = db_filepath
+		Tree.LIMIT = limit
+		Tree.JSON = json_
+
+		if filter_date is not None:
+			Tree.FILTER_K = 'date'
+			Tree.FILTER_V = filter_date
+		elif filter_src is not None:
+			Tree.FILTER_K = 'news_src' 
+			Tree.FILTER_V = filter_src
