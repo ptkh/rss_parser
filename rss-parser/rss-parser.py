@@ -55,3 +55,45 @@ def logging_basicConfig(LOGGING_LEVEL, LOG_FILEPATH):
 
 class FeedParserException(Exception):
     """Custom Exception class for <class 'Tree'>"""
+
+
+class Tree:
+	"""	Contains methods for fetching and parsing XML document, processing sub-elements, setting correct working tags for different variants of tags found in different sources,
+
+	(e.g. 
+		<xml>
+			<article>
+				<link>...</link>
+				<date>...</date>
+				<title>...</title>
+				<summary>...</summary>			
+			</article>
+		</xml>	
+	or
+		<xml>
+			<rss>
+				<item>
+					<link>...</link>
+					<pubDate>...</pubDate>
+					<title>...</title>
+					<description>...</description>			
+				</item>
+			</rss>
+		</xml>
+	where working tags are different and can't be parsed by using same 'key'.)
+
+	Parsing starts when <class 'Tree'> object is initiated and result is an attribute - instance.list_of_articles - created as a list of 	dictionaries which contain news articles organized in key-value pairs"""
+
+	def __init__():
+		"""		Initiates class <Tree> object, connects to provided url, 
+		after fetching response from RSS feed website, calls get_xml_tree method and xml.etree.ElementTree(.Element) object is created,
+		calls collect_descendant_elements and collects all child, grandchild and any depth child elements, calls remove_tag_prefixes method 
+		(to cover situations where, while fetching, prefixes are concatenated in front of element tags by server, also collects all tags in a set and returns it)
+		set_working_tags method iterates through collected tags and sets self.ARTICLE, self.DESCRIPTION, self.DATE, self.TITLE, self.LINK variables for parsing article elements later,
+		collect_articles method is called, which iterates through list of child elements and collects only article elements,
+		after that parse_article method is called for every article in collected articles, organizes articles and their sub-elements in dictionaries and appends them to Tree.CACHE.
+		then prints (if --limit is specified limits number of articles) formatted collected news (or if --json specified converts to json) to stdout 
+		or if --html or --pdf is specified converts cached news to corresponding format, after that inserts cached news in SQLite3 database.
+		if URL was not provided fetches news from database (if --date or --source is specified filters before fetching)
+		according to provided arguments prints to stdout or converts to specified format.
+		"""
