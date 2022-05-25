@@ -1,5 +1,6 @@
 #added by me
-
+.rss-parser/
+*.db
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

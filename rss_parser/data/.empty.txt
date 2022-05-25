@@ -1,0 +1,1 @@
+Git does not see empty directory, so this is dummy file to help git track rss_parser/data/ directory.
