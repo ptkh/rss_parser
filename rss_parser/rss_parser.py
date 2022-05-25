@@ -177,7 +177,7 @@ class Tree:
 			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
 			if Tree.URL is not None:
 				logging.info(f"Tree object created. url: {url}")
-				self.response = self.estimate_connection()
+				self.response = self.establish_connection()
 				logging.info(f"Connected to source. self.response: {self.response}")
 				self.tree = self.get_xml_tree()
 				logging.info(f"Element object created. self.tree = {self.tree}")
@@ -251,10 +251,10 @@ class Tree:
 				Tree.DB.close()
 
 	@staticmethod
-	def estimate_connection() -> HTTPResponse:
+	def establish_connection() -> HTTPResponse:
 		"""Sends request to Tree.URL and returns <http.client.HTTPResponse> object"""
 		try:			
-			logging.debug("Method estimate_connection called.")
+			logging.debug("Method establish_connection called.")
 			headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'} #overriding user-agent prevents server from blocking request
 			request = Request(url=Tree.URL, headers=headers)  # 	<urllib.request.Request>
 			logging.info("Request created: %s" % request)
