@@ -120,20 +120,20 @@ class Tree:
 	### different tag variants for parsing different sources
 	article_tags = 'item', 'article', 'entry'	
 	description_tags = 'description', 'summary'
-	date_tags = 'pubdate', 'pubDate', 'published', 'updated'
+	date_tags = 'pubdate', 'pubDate', 'published', 'updated', 'date'
 
 	# RegEx pattern for removing tag prefix
-	pattern_prefix = "\{.*\}"
+	pattern_prefix = "{.*}"
 	prefix_pattern = re.compile(pattern_prefix)
 	### RegEx patterns for grabbing specific tags/content
 	pattern_tag = "<.+?>"    
 	pattern_enclosed_by_same_tag = "^<([a-z]+) *[^/]*?>((.|\n)*)</\\1>$"
 	pattern_open_end_tag = "<([a-z]+) *[^/]*?>((.|\n)*)</\\1>"
-	pattern_CDATA = "<!\[CDATA\[.*?\]\]>"
-	pattern_p = "<p(|\s+[^>]*)>(.*?)<\/p\s*>"
-	pattern_a = "<a\s*(.*)>(.*)</a>"
-	pattern_href = 'href\s*=\s*"(.+?)"'
-	pattern_img= 'img\s*=\s*"(.+?)"'
+	pattern_CDATA = "<![CDATA[.*?]]>"
+	pattern_p = "<p(| +[^>]*)>(.*?)</p *>"
+	pattern_a = "<a *(.*)>(.*)</a>"
+	pattern_href = 'href *= *"(.+?)"'
+	pattern_img= 'img *= *"(.+?)"'
 	# compiled patterns
 	tag_pattern = re.compile(pattern_tag)
 	enclosed_by_same_tag_pattern = re.compile(pattern_enclosed_by_same_tag)
@@ -297,6 +297,7 @@ class Tree:
 		try:
 			logging.debug("Method collect_descendant_elements called.")
 			elements = [] #list for collecting child elements
+			self.feed_title = "//title not provided//"
 			for element in self.tree:        #(tree ~> *child* ~>...
 				logging.debug("Traversing XML tree, collecting child elements")
 				if element.tag == 'channel':
@@ -338,7 +339,7 @@ class Tree:
 			tags = set() #for collecting tags while iterating
 			if hasattr(self.tree, 'tag'):    #checks if element has tag
 				if re.search(Tree.prefix_pattern, self.tree.tag) is not None: # if tag has prefix, removes it
-					logging.info('Removing tag prefix: %s' % element.tag)
+					logging.info('Removing tag prefix: %s' % self.tree.tag)
 					self.tree.tag = re.sub(Tree.prefix_pattern, '', self.tree.tag) 
 				tags.add(self.tree.tag) # adds tag to set
 				for element in self.tree:
@@ -365,7 +366,6 @@ class Tree:
 													logging.info('Removing tag prefix: %s' % element.tag)
 													emt.tag = re.sub(Tree.prefix_pattern, '', emt.tag)
 												tags.add(emt.tag)
-
 			return tags
 		except Exception as e:
 			logging.exception(e)
