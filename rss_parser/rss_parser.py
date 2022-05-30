@@ -31,13 +31,13 @@ import json
 def rss_arg_parser() -> argparse.Namespace:
 	"""	Creates custom parser with following arguments: 
 	\nurl					URL to XML format RSS feed
-	\n--version			print version info
+	\n--version				print version info
 	\n--json				print result as JSON in stdout
 	\n--date				outputs articles from specified date
-	\n--source			outputs articles from specified source
-	\n--verbose			output verbose status messages
+	\n--source				outputs articles from specified source
+	\n--verbose				output verbose status messages
 	\n--limit				limit news topics, if provided
-	\n--pdf				export result as PDF to provided destination (default=cwd)
+	\n--pdf					export result as PDF to provided destination (default=cwd)
 	\n--html				export result as HTML to provided destination (default=cwd)
 			"""
 	parser = argparse.ArgumentParser(description='tool for parsing RSS feeds')
@@ -177,7 +177,8 @@ class Tree:
 			Tree.DB = Tree.db_connection(Tree.DB_FILEPATH)
 			if Tree.URL is not None:
 				logging.info(f"Tree object created. url: {url}")
-				self.response = self.establish_connection()
+				self.request = self.create_request(Tree.URL)
+				self.response = self.establish_connection(self.request)
 				logging.info(f"Connected to source. self.response: {self.response}")
 				self.tree = self.get_xml_tree()
 				logging.info(f"Element object created. self.tree = {self.tree}")
@@ -235,11 +236,13 @@ class Tree:
 					if Tree.PDF_FILEPATH is not None:
 						Tree.create_pdf()
 		except FeedParserException as e:
-			logging.CRITICAL(e)
+			# logging.CRITICAL(e)
+			print(str(e.args)[1:-2])
 			logging.exception(e)
 			sys.exit(1)
 		except Exception as e:
-			logging.CRITICAL(e)
+			# logging.CRITICAL(e)
+			print(str(e.args)[1:-2])
 			logging.exception(e)
 			sys.exit(1)
 		finally:
@@ -251,17 +254,27 @@ class Tree:
 				Tree.DB.close()
 
 	@staticmethod
-	def establish_connection() -> HTTPResponse:
+	def create_request(url: str) -> Request:
+		"""Creates an HTTP request with provided url"""
+		try:			
+			logging.debug("Method create_request called.")
+			headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'} #overriding user-agent prevents server from blocking request
+			request = Request(url, headers=headers)  # 	<urllib.request.Request>
+			logging.info("Request created: %s" % request)
+			return request        
+		except Exception as e:
+			logging.exception(e)
+			raise FeedParserException(e)
+
+	@staticmethod
+	def establish_connection(request: Request) -> HTTPResponse:
 		"""Sends request to Tree.URL and returns <http.client.HTTPResponse> object"""
 		try:			
 			logging.debug("Method establish_connection called.")
-			headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.3'} #overriding user-agent prevents server from blocking request
-			request = Request(url=Tree.URL, headers=headers)  # 	<urllib.request.Request>
-			logging.info("Request created: %s" % request)
 			response = urlopen(request)
 			logging.debug("Response received: %s" %response)
 			
-			return response        
+			return response
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -291,37 +304,24 @@ class Tree:
 						if child.tag == 'title':
 							logging.debug("Channel title found: %s" % child.text)
 							self.feed_title = child.text
-				if element.tag == self.ARTICLE: #checks if child tag is item
-					logging.debug("Article element found: %" % element)
-					elements.append(element)    #if true, appends element block (current ET.Element object) to element list
-					continue                 #and continues iterating on the same level
-				for elemnt in element:       #otherwise iterates over tags one level deeper ( tree ~> child ~> *grandchild* ~> ... )
+				elements.append(element) 
+				for elemnt in element: #( tree ~> child ~> *grandchild* ~> ... )
 					if elemnt.tag == 'channel':
 						for child in elemnt:
 							if child.tag == 'title':
 								logging.debug("Channel title found: %s" % child.text)
 								self.feed_title = child.text
-					if elemnt.tag == self.ARTICLE:
-						logging.debug("Article element found: %" % element)
-						elements.append(elemnt)
-						continue
+					elements.append(elemnt)
 					for elemt in elemnt:     #( tree ~> child ~> grandchild ~> *2Xgrandchild* ~> ... )
 						if elemt.tag == 'channel':
 							for child in elemt:
 								if child.tag == 'title':
 									logging.debug("Channel title found: %s" % child.text)
 									self.feed_title = child.text
-						if elemt.tag == self.ARTICLE:
-							logging.debug("Article element found: %" % element)
-							elements.append(elemt)
-							continue
+						elements.append(elemt)
 						for elem in elemt:   #( tree ~> child ~> grandchild ~> 2Xgrandchild ~> *3Xgrandchild* ~> ... )
-							if elem.tag == self.ARTICLE:
-								logging.debug("Article element found: %" % element)
-								elements.append(elem)
-								continue
+							elements.append(elem)
 			logging.debug("Returning article elements: %s", elements)
-			
 			return elements
 		except Exception as e:
 			logging.exception(e)
