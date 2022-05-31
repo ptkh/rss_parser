@@ -167,6 +167,7 @@ class Tree:
 		Tree.DB_FILEPATH = db_filepath
 		Tree.LIMIT = limit
 		Tree.JSON = json_
+		self.dict_ = None
 		if filter_date is not None:
 			Tree.FILTER_K = 'date'
 			Tree.FILTER_V = filter_date
@@ -428,17 +429,17 @@ class Tree:
 		(e.g. dict({'title': title_element_contents, 'link': link_element_contents, ...})
 		returns dictionary"""
 		try:
-			dict_ = {}
+			self.dict_ = {}
 			for element in article:
 				logging.info("Parsing article sub-element: %s" % element.tag)
 				if element.text is not None:
 					element.text = element.text.replace(u'\xa0', u' ') 
 				if element.tag == self.TITLE:
-					self.parse_title(element, dict_)
+					self.parse_title(element, self.dict_)
 				elif element.tag == self.DATE:
-					self.parse_date(element, dict_)
+					self.parse_date(element, self.dict_)
 				elif element.tag == self.LINK:
-					self.parse_link(element, dict_)
+					self.parse_link(element, self.dict_)
 				elif element.tag == self.DESCRIPTION:
 					if element.text is None:
 						if self.DESCRIPTION == 'description' and 'summary' in self.__tags:
@@ -446,25 +447,25 @@ class Tree:
 						elif self.DESCRIPTION == 'summary' and 'description' in self.__tags:
 							self.DESCRIPTION = 'description'
 						continue
-					self.parse_description(element, dict_)
+					self.parse_description(element, self.dict_)
 				elif element.tag == 'content' and 'url' in element.attrib:
-					if 'news_url' in dict_:
-						dict_['news_url'] = f"{dict_['news_url']}\n{element.attrib['url']} (content)"
+					if 'news_url' in self.dict_:
+						self.dict_['news_url'] = f"{self.dict_['news_url']}\n{element.attrib['url']} (content)"
 					else:
-						dict_['news_url'] = f"{element.attrib['url']} (content)"
-			dict_['news_title'] = dict_['news_title'].strip()
-			dict_['news_url'] = dict_['news_url'].strip()
-			dict_['news_src'] = Tree.URL
-			if 'news_description' in dict_:
-				dict_['news_description'] = dict_['news_description'].strip()
+						self.dict_['news_url'] = f"{element.attrib['url']} (content)"
+			self.dict_['news_title'] = self.dict_['news_title'].strip()
+			self.dict_['news_url'] = self.dict_['news_url'].strip()
+			self.dict_['news_src'] = Tree.URL
+			if 'news_description' in self.dict_:
+				self.dict_['news_description'] = self.dict_['news_description'].strip()
 			else:
-				dict_['news_description'] = ''
-			if 'news_date' not in dict_:
-				dict_['news_date'] = Tree.TODAY
-			dict_['date'] = str(dict_['news_date'])[:10]
-			dict_['news_feed_title'] = self.feed_title
+				self.dict_['news_description'] = ''
+			if 'news_date' not in self.dict_:
+				self.dict_['news_date'] = Tree.TODAY
+			self.dict_['date'] = str(self.dict_['news_date'])[:10]
+			self.dict_['news_feed_title'] = self.feed_title
 
-			return dict_
+			return self.dict_
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
