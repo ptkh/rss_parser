@@ -24,6 +24,7 @@ import xml.etree.ElementTree as ET
 from lxml import html
 import pdfkit
 import dateutil.parser
+from datetime import date
 import json
 
 
@@ -110,6 +111,7 @@ class Tree:
 	temp_html_path = os.path.join(os.path.abspath('rss_parser'), 'data/.temp.html')
 	PAGE_TITLE = None
 	ARTICLE_DIVS = ''
+	TODAY = date.today()
 
 	# working tags
 	ARTICLE = None
@@ -167,7 +169,6 @@ class Tree:
 		Tree.DB_FILEPATH = db_filepath
 		Tree.LIMIT = limit
 		Tree.JSON = json_
-		self.dict_ = None
 		if filter_date is not None:
 			Tree.FILTER_K = 'date'
 			Tree.FILTER_V = filter_date
@@ -191,10 +192,11 @@ class Tree:
 				self.articles = self.collect_articles()
 				logging.info("Article elements collected.")
 				for article in self.articles:
+					self.dict_ = {}
 					logging.info("Parsing article.")
-					temp = self.parse_article(article)
+					self.parse_article(article)
 					logging.info("Adding parsed article to cache.")
-					Tree.cache_news(temp) # appends to Tree.CACHE
+					Tree.cache_news(self.dict_) # appends to Tree.CACHE
 				if Tree.HTML_FILEPATH is None and Tree.PDF_FILEPATH is None:
 					# loops through and prints cached articles
 					logging.info("Printing news articles from Tree.CACHE. Tree.LIMIT = %s" % Tree.LIMIT)
@@ -214,10 +216,7 @@ class Tree:
 						Tree.create_pdf()
 			else: # if self.URL is None
 				logging.info("URL not provided, fetching news from database")
-				if Tree.FILTER_K is not None:
-					Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
-				else:
-					Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
+				Tree.db_fetch_news(Tree.DB, Tree.FILTER_K, Tree.FILTER_V)
 				if Tree.HTML_FILEPATH is None and Tree.PDF_FILEPATH is None:
 					logging.info("Printing news articles from Tree.CACHE. Tree.LIMIT = %s" % Tree.LIMIT)
 					for article in Tree.CACHE:
@@ -429,7 +428,6 @@ class Tree:
 		(e.g. dict({'title': title_element_contents, 'link': link_element_contents, ...})
 		returns dictionary"""
 		try:
-			self.dict_ = {}
 			for element in article:
 				logging.info("Parsing article sub-element: %s" % element.tag)
 				if element.text is not None:
@@ -464,8 +462,6 @@ class Tree:
 				self.dict_['news_date'] = Tree.TODAY
 			self.dict_['date'] = str(self.dict_['news_date'])[:10]
 			self.dict_['news_feed_title'] = self.feed_title
-
-			return self.dict_
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -566,11 +562,9 @@ class Tree:
 					\nTitle: {title}
 					\n____________________________________________
 					\nDate: {date}
-
 					\n{description}
 					\nLinks:
-					\n{url}
-					""")
+					\n{url}""")
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -654,13 +648,13 @@ class Tree:
 				else:
 					links.append(url[:-7])
 			for link in links:
-				links_html += f'''<a href="{link}">{link}</a>\n'''
+				links_html += f'''<a href="{link}">{link}</a>\n\t\t\t\t\t\t'''
 
 			logging.info('Parsing image links for constructing HTML')
 			for img in img_urls:
-				imgs_html += f'''<img src="{img}" alt="" width="60% of window">\n'''
-				div_with_feed_title = f'''
-					<div
+				imgs_html += f'''<img src="{img}" alt="" width="60% of window">\n\t\t\t\t\t\t'''
+			div_with_feed_title = f'''
+					<div>
 						<h2>{dict_['news_feed_title']}</h2>
 						{imgs_html}
 						<p>{dict_['news_src']}</p>
@@ -673,7 +667,7 @@ class Tree:
 					<div>
 						{imgs_html}
 						<p>{dict_['news_src']}</p>
-						<h2>{dict_['news_title']}</h2>
+						<h3>{dict_['news_title']}</h3>
 						<p>{dict_['news_date']}</p>
 						<p>{dict_['news_description']}</p>
 						{links_html}
@@ -690,9 +684,9 @@ class Tree:
 		try:
 			Tree.create_html(Tree.temp_html_path)
 			logging.info("Created html string for converting to pdf")
-			logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
-			pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
 			try:
+				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
+				pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
 			except Exception as e:
 				logging.critical("Failed to create PDF document due to exception: %s", e)
@@ -754,7 +748,7 @@ class Tree:
 				with database:
 					cursor = database.cursor()
 					cursor.execute(sql)
-					logging.info("Creating cached_news table in database: %s" % filepath)
+				logging.info("Creating cached_news table in database: %s" % filepath)
 			
 			return database
 		except Exception as e:
