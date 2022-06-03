@@ -131,7 +131,7 @@ class Tree:
 	pattern_tag = "<.+?>"    
 	pattern_enclosed_by_same_tag = "^<([a-z]+) *[^/]*?>((.|\n)*)</\\1>$"
 	pattern_open_end_tag = "<([a-z]+) *[^/]*?>((.|\n)*)</\\1>"
-	pattern_CDATA = "<![CDATA[.*?]]>"
+	pattern_CDATA = "<!\[CDATA\[.*?\]\]>"
 	pattern_p = "<p(| +[^>]*)>(.*?)</p *>"
 	pattern_a = "<a *(.*)>(.*)</a>"
 	pattern_href = 'href *= *"(.+?)"'
@@ -495,8 +495,8 @@ class Tree:
 				nodes = html.fragments_fromstring(element.text)
 				self.parse_html(nodes, dict_)
 			elif element.text is not None:
-				if re.search(self.pattern_CDATA, element.text) != None:
-					element.text = element.text[8:-3].strip()
+				if re.search(self.CDATA_pattern, element.text) != None:
+					element.text = element.text[9:-3].strip()
 				if re.search(self.enclosed_by_same_tag_pattern, element.text) is not None:
 					s, e = re.search(self.enclosed_by_same_tag_pattern, element.text).span()
 					fragment = element.text[s:e]
@@ -504,7 +504,7 @@ class Tree:
 					self.parse_html(nodes, dict_)
 				elif re.search(self.open_end_tag_pattern, element.text) is not None:
 					s,e = re.search(self.open_end_tag_pattern, element.text).span()
-					text = element.text[:s]
+					text = element.text[:s] #text before enclosing tags
 					if re.search(self.tag_pattern, text) is not None:
 						nodes = html.fragments_fromstring(text)
 						self.parse_html(nodes, dict_)
