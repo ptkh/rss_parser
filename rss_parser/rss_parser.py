@@ -26,6 +26,8 @@ import pdfkit
 import dateutil.parser
 from datetime import date
 import json
+import colorama
+from colorama import Fore, Back, Style
 
 
 
@@ -50,8 +52,8 @@ def rss_arg_parser() -> argparse.Namespace:
 	parser.add_argument('--source', type=str, default=None, help='outputs articles from specified source')
 	parser.add_argument('--verbose', action='store_true', help='output verbose status messages')
 	parser.add_argument('--limit', help='limit news topics, if provided', type=int, nargs='?', default=-1, const=5)
-	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const=os.path.join(os.path.abspath('rss_parser'), 'data/cached_news.pdf'), nargs='?', help='export result as PDF to provided destination, might take time for downloading images')
-	parser.add_argument('--html', metavar='FILEPATH', type=str,  const=os.path.join(os.path.abspath('rss_parser'), 'data/cached_news.html'), nargs='?', help='export result as HTML to provided destination')
+	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const='cached_news.pdf', nargs='?', help='export result as PDF to current working directory, might take time for downloading images')
+	parser.add_argument('--html', metavar='FILEPATH', type=str,  const='cached_news.html', nargs='?', help='export result as HTML to current working directory')
 	args = parser.parse_args()
 	return args
 
@@ -108,7 +110,7 @@ class Tree:
 	FILTER_K = None
 	FILTER_V = None
 	CACHE = []
-	temp_html_path = os.path.join(os.path.abspath('rss_parser'), 'data/.temp.html')
+	temp_html_path = '.temp.html'
 	PAGE_TITLE = None
 	ARTICLE_DIVS = ''
 	TODAY = date.today()
@@ -148,7 +150,7 @@ class Tree:
 
 
 	def __init__(self, url, json_, html_filepath, pdf_filepath, limit, filter_src, filter_date, 
-					db_filepath=os.path.join(os.path.abspath('rss_parser'),'data/cached_news.db'), ):
+					db_filepath='cached_news.db', ):
 		"""		Initiates class <Tree> object, connects to provided url, 
 		after fetching response from RSS feed website, calls get_xml_tree method and xml.etree.ElementTree(.Element) object is created,
 		calls collect_descendant_elements and collects all child, grandchild and any depth child elements, calls remove_tag_prefixes method 
@@ -297,7 +299,7 @@ class Tree:
 		try:
 			logging.debug("Method collect_descendant_elements called.")
 			elements = [] #list for collecting child elements
-			self.feed_title = "//title not provided//"
+			self.feed_title = str(Tree.TODAY)
 			for element in self.tree:        #(tree ~> *child* ~>...
 				logging.debug("Traversing XML tree, collecting child elements")
 				if element.tag == 'channel':
@@ -554,17 +556,12 @@ class Tree:
 						description = value
 					elif key == 'news_url':
 						url = value
-				print(f"""			
-					\n____________________________________________
-					\nFeed: {feed_title}
-					\nSource: {src}
-					\n____________________________________________
-					\nTitle: {title}
-					\n____________________________________________
-					\nDate: {date}
-					\n{description}
-					\nLinks:
-					\n{url}""")
+				print(f"Feed:{Fore.RED} {feed_title} ")
+				print(f"Source:{Fore.RED}{Style.DIM} {src} ")
+				print(f"Title:{Back.BLACK}{Fore.GREEN}{Style.BRIGHT} {title} ")
+				print(f"Date:{Fore.GREEN}{Style.DIM} {date} ")
+				print(f"{Style.BRIGHT}{Fore.YELLOW}{Back.BLACK}{description}")
+				print(f"Links:{Style.DIM} {url}\n\n")
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
@@ -578,11 +575,14 @@ class Tree:
 			else:
 				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.HTML_FILEPATH)
 			articles_html = Tree.to_html_string(Tree.CACHE)
+			os.chdir(CWD) # .temp.html file not found in CWD
 			with open(filepath, 'w') as file:
 				file.write(articles_html)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
+		finally:
+			os.chdir(os.path.join(os.path.realpath(__file__)[:-13], 'data/'))
 
 	@staticmethod
 	def to_html_string(list_of_articles: list[dict]) -> str:
@@ -610,14 +610,18 @@ class Tree:
 					if feed_titles.count(title)/len(feed_titles) >= 0.75:
 						Tree.PAGE_TITLE += ', ' + title
 
-			if Tree.PAGE_TITLE is None:
-				Tree.PAGE_TITLE = Tree.TODAY
-
 			articles_html = f'''
 			<!DOCTYPE html>
 				<html>
 					<head>
 						<title>{Tree.PAGE_TITLE}</title>
+						<style>
+							div{{box-sizing: border-box;
+								width: 100%;
+								border: dotted black 7px;
+								padding: 10px;
+								text-align: center;}}
+						</style>
 					</head>
 					<body>
 
@@ -682,11 +686,12 @@ class Tree:
 	def create_pdf() -> None:
 		"""Created HTML document and converts it into PDF using wkhtmltopdf, embedding images may take long time."""
 		try:
-			Tree.create_html(Tree.temp_html_path)
+			Tree.create_html(Tree.temp_html_path) # .temp.html not found
 			logging.info("Created html string for converting to pdf")
 			try:
+				os.chdir(CWD)
 				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
-				pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
+				pdfkit.from_file(input=os.path.join(CWD, Tree.temp_html_path), output_path=Tree.PDF_FILEPATH)
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
 			except Exception as e:
 				logging.critical("Failed to create PDF document due to exception: %s", e)
@@ -697,6 +702,7 @@ class Tree:
 		finally:
 			if os.path.exists(Tree.temp_html_path):
 				os.remove(Tree.temp_html_path)
+			os.chdir(os.path.join(os.path.realpath(__file__)[:-13], 'data/'))
 
 	@staticmethod
 	def db_fetch_news(database: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
@@ -742,9 +748,22 @@ class Tree:
 		logging.info("Connecting to SQLite database")
 		try:
 			if os.path.isfile(filepath):
-				database = sqlite3.connect(filepath)
+				logging.info("cached_news.db found")
+				try:
+					database = sqlite3.connect(filepath)
+					logging.info("Connected to cached_news.db")
+				except sqlite3.OperationalError as e:
+					print("Error connecting to existing cached_news.db")
+					sys.exit(1)
 			else:
-				database = sqlite3.connect(filepath)
+				logging.info("cached_news.db not found")
+				try:
+					print("CWD", os.getcwd())
+					print("REALPATH", os.path.realpath(__file__))
+					database = sqlite3.connect(filepath)
+				except sqlite3.OperationalError as e:
+					print("Error connecting to cached_news.db")
+					sys.exit(1)
 				with database:
 					cursor = database.cursor()
 					cursor.execute(sql)
@@ -876,6 +895,13 @@ class Tree:
 
 
 def main():
+	global CWD 
+	CWD = os.getcwd()
+
+	os.chdir(os.path.realpath(__file__)[:-13])
+	if not os.path.exists('data/'):
+		os.makedirs('data/')
+	os.chdir('data/')
 	VERSION = 'RSSFeedParser 0.0.1'
 	LOGGING_LEVEL = logging.CRITICAL
 	LOG_FILEPATH = None
@@ -891,6 +917,7 @@ def main():
 	else:
 		LOG_FILEPATH = args.log
 	logging_basicConfig(LOGGING_LEVEL, LOG_FILEPATH)
+	colorama.init(autoreset=True)
 
 	tree = Tree(args.url, 
 				limit=args.limit,
@@ -899,7 +926,6 @@ def main():
 				pdf_filepath=args.pdf, 
 				filter_src=args.source,
 				filter_date=args.date,)
-
 
 
 if __name__ == '__main__':
