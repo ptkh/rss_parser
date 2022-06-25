@@ -682,15 +682,22 @@ class Tree:
 	def create_pdf() -> None:
 		"""Created HTML document and converts it into PDF using wkhtmltopdf, embedding images may take long time."""
 		try:
-			Tree.create_html(Tree.temp_html_path)
+			Tree.create_html(Tree.temp_html_path) # .temp.html not found
 			logging.info("Created html string for converting to pdf")
-			try:
+			os.chdir(CWD)
+			if 'win' in sys.platform:
+				if not os.path.isfile(os.path.join(os.path.dirname(__file__), 'wkhtmltox', 'bin', 'wkhtmltopdf.exe')):
+					urllib.request.urlretrieve("https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.mxe-cross-win64.7z", os.path.join(os.path.dirname(__file_), 'wkhtmltox.7z')
+					from pyunpack import Archive
+					Archive('wkhtmltox.7z').extractall(os.path.dirname(__file__))
+				config = pdfkit.configuration(wkhtmltopdf=os.path.join(os.path.dirname(__file__), 'wkhtmltox', 'bin', 'wkhtmltopdf.exe')
 				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
-				pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
+				pdfkit.from_file(input=os.path.join(CWD, Tree.temp_html_path), output_path=os.path.join(CWD, Tree.PDF_FILEPATH), configuration=config)
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
-			except Exception as e:
-				logging.critical("Failed to create PDF document due to exception: %s", e)
-				raise FeedParserException(e)
+			else:
+				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
+				pdfkit.from_file(input=os.path.join(CWD, Tree.temp_html_path), output_path=os.path.join(CWD, Tree.PDF_FILEPATH))
+				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
