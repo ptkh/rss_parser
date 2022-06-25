@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
    name='rss_parser',
-   version='0.0.1',
+   version='0.1.0',
    description='XML format RSS feed parser',
    author='Khachidze Paata',
    author_email='peterkhachidze@gmail.com',

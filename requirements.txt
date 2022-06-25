@@ -4,3 +4,5 @@ pytest==7.1.2
 python_dateutil==2.8.2
 setuptools==59.6.0
 colorama==0.4.4
+pyunpack==0.3
+patool==1.12

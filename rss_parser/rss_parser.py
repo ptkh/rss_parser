@@ -19,7 +19,7 @@ import logging
 import re
 import sys
 import sqlite3
-from urllib.request import Request, urlopen
+from urllib.request import Request, urlopen, urlretrieve
 import xml.etree.ElementTree as ET
 from lxml import html
 import pdfkit
@@ -28,8 +28,8 @@ from datetime import date
 import json
 import colorama
 from colorama import Fore, Back, Style
-
-
+from pyunpack import Archive
+import time
 
 def rss_arg_parser() -> argparse.Namespace:
 	"""	Creates custom parser with following arguments: 
@@ -52,8 +52,8 @@ def rss_arg_parser() -> argparse.Namespace:
 	parser.add_argument('--source', type=str, default=None, help='outputs articles from specified source')
 	parser.add_argument('--verbose', action='store_true', help='output verbose status messages')
 	parser.add_argument('--limit', help='limit news topics, if provided', type=int, nargs='?', default=-1, const=5)
-	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const='cached_news.pdf', nargs='?', help='export result as PDF to current working directory, might take time for downloading images')
-	parser.add_argument('--html', metavar='FILEPATH', type=str,  const='cached_news.html', nargs='?', help='export result as HTML to current working directory')
+	parser.add_argument('--pdf', metavar='FILEPATH', type=str, const='cached_news.pdf', nargs='?', help='export result as PDF to provided destination, might take time for downloading images')
+	parser.add_argument('--html', metavar='FILEPATH', type=str,  const='cached_news.html', nargs='?', help='export result as HTML to provided destination')
 	args = parser.parse_args()
 	return args
 
@@ -570,19 +570,20 @@ class Tree:
 	def create_html(filepath: str) -> None:
 		"""Method for creating .html document from Tree.articles_html"""
 		try:
+			os.chdir(CWD)
 			if filepath == Tree.temp_html_path:
 				logging.info("Creating html document from Tree.CACHE for converting to PDF >> %s" % Tree.temp_html_path)
 			else:
 				logging.info("Creating html document from Tree.CACHE >> %s" % Tree.HTML_FILEPATH)
 			articles_html = Tree.to_html_string(Tree.CACHE)
-			os.chdir(CWD) # .temp.html file not found in CWD
+			os.chdir(CWD)
 			with open(filepath, 'w') as file:
 				file.write(articles_html)
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
 		finally:
-			os.chdir(os.path.join(os.path.realpath(__file__)[:-13], 'data/'))
+			os.chdir(os.path.join(os.path.dirname(__file__), 'data/'))
 
 	@staticmethod
 	def to_html_string(list_of_articles: list[dict]) -> str:
@@ -688,20 +689,45 @@ class Tree:
 		try:
 			Tree.create_html(Tree.temp_html_path) # .temp.html not found
 			logging.info("Created html string for converting to pdf")
-
 			os.chdir(CWD)
 			if 'win' in sys.platform:
-				if not os.path.isfile(os.path.join(os.path.dirname(__file__), 'wkhtmltox', 'bin', 'wkhtmltopdf.exe')):
-					urllib.request.urlretrieve("https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.mxe-cross-win64.7z", os.path.join(os.path.dirname(__file_), 'wkhtmltox.7z')
-					from pyunpack import Archive
-					Archive('wkhtmltox.7z').extractall(os.path.dirname(__file__))
-				config = pdfkit.configuration(wkhtmltopdf=os.path.join(os.path.dirname(__file__), 'wkhtmltox', 'bin', 'wkhtmltopdf.exe')
+				if not os.path.isdir(os.path.join(os.path.dirname(__file__), 'wkhtmltox')):
+					try:
+						logging.critical("Downloading wkhtmltox for windows machine")
+						status = urlretrieve("https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox-0.12.6-1.mxe-cross-win64.7z", os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z'))
+					except Exception as e:
+						logging.critical(e)
+					else:
+						try:
+							for i in range(5):
+								if os.path.isfile(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z')):
+									logging.critical("Download complete.")
+									break
+								else:
+									logging.critical("Waiting for download to be completed")
+									time.sleep(2)
+							if not os.path.isfile(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z')):
+								raise Exception("Download not complete. Check network connection and try again")
+
+							logging.critical("Unpacking wkthmltox")
+							Archive(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z')).extractall(os.path.dirname(__file__))
+						except Exception as e:
+							logging.critical(e)
+						else:
+							logging.critical("Unpacking complete.\nRun command again")
+					finally:
+						if os.path.exists(Tree.temp_html_path):
+							os.remove(Tree.temp_html_path)
+							os.remove(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z'))
+							sys.exit(0)
+				config = pdfkit.configuration(wkhtmltopdf=os.path.join(os.path.dirname(__file__), 'wkhtmltox', 'bin', 'wkhtmltopdf.exe'))
 				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
-				pdfkit.from_file(input=os.path.join(CWD, Tree.temp_html_path), output_path=os.path.join(CWD, Tree.PDF_FILEPATH), configuration=config)
+				os.chdir(CWD)
+				pdfkit.from_file(Tree.temp_html_path, Tree.PDF_FILEPATH, configuration=config)
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
 			else:
 				logging.info("Creating pdf document using webkit rendering engine and qt. Please wait...")
-				pdfkit.from_file(input=os.path.join(CWD, Tree.temp_html_path), output_path=os.path.join(CWD, Tree.PDF_FILEPATH))
+				pdfkit.from_file(input=Tree.temp_html_path, output_path=Tree.PDF_FILEPATH)
 				logging.info("PDF document created: %s" % Tree.PDF_FILEPATH)
 		except Exception as e:
 			logging.exception(e)
@@ -709,7 +735,8 @@ class Tree:
 		finally:
 			if os.path.exists(Tree.temp_html_path):
 				os.remove(Tree.temp_html_path)
-			os.chdir(os.path.join(os.path.realpath(__file__)[:-13], 'data/'))
+			if os.path.exists(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z')):
+				os.remove(os.path.join(os.path.dirname(__file__), 'wkhtmltox.7z'))
 
 	@staticmethod
 	def db_fetch_news(database: sqlite3.Connection, filter_key: str, filter_value: str) -> None:
@@ -754,6 +781,7 @@ class Tree:
 		"""
 		logging.info("Connecting to SQLite database")
 		try:
+			os.chdir(os.path.join(os.path.dirname(__file__), 'data'))
 			if os.path.isfile(filepath):
 				logging.info("cached_news.db found")
 				try:
@@ -765,8 +793,6 @@ class Tree:
 			else:
 				logging.info("cached_news.db not found")
 				try:
-					print("CWD", os.getcwd())
-					print("REALPATH", os.path.realpath(__file__))
 					database = sqlite3.connect(filepath)
 				except sqlite3.OperationalError as e:
 					print("Error connecting to cached_news.db")
@@ -780,6 +806,8 @@ class Tree:
 		except Exception as e:
 			logging.exception(e)
 			raise FeedParserException(e)
+		finally:
+			os.chdir(CWD)
 
 	@staticmethod
 	def db_insert_cached_one(database: sqlite3.Connection) -> None:
@@ -905,11 +933,11 @@ def main():
 	global CWD 
 	CWD = os.getcwd()
 
-	os.chdir(os.path.realpath(__file__)[:-13])
+	os.chdir(os.path.dirname(__file__))
 	if not os.path.exists('data/'):
 		os.makedirs('data/')
 	os.chdir('data/')
-	VERSION = 'RSSFeedParser 0.0.1'
+	VERSION = 'RSSFeedParser 0.1.0'
 	LOGGING_LEVEL = logging.CRITICAL
 	LOG_FILEPATH = None
 
